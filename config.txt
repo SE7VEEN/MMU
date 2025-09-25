@@ -1,0 +1,12 @@
+# --- Configuración de Memoria ---
+TAMANO_MEMORIA_VIRTUAL: 65536
+TAMANO_MEMORIA_FISICA: 32768
+TAMANO_PAGINA: 4096
+
+# --- Estado Inicial de la Tabla de Páginas ---
+# Formato: PAGINA:MARCO
+MAPEOS:
+  2: 17
+  5: 17
+  10: 3
+  17:1
