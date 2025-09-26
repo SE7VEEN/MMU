@@ -1,3 +1,17 @@
+#   Implementación de un traductor de direcciones de memoria virtual a física
+#   Universidad Autónoma de Puebla
+#   Facultad de Ciencias de la Computación
+#   Materia: Sistemas Operativos II
+#   date 25/09/2025
+#   Integrantes:
+#    -Jose Antonio Rodriguez Maldonado  202250718
+#    -Jose Luis Santiago Ibañez         202253693
+#    -Jorge Luis Vergara Mora           202256565
+#   Objetivo:
+#   Implementar un sistema de traducción de direcciones mediante paginación
+#   simulando una Unidad de Gestión de Memoria (MMU).
+
+
 import math
 
 # Su propósito es asegurar que la representación binaria tenga la longitud de bits correcta.
@@ -34,17 +48,21 @@ class TraductorDeDirecciones:
          # Inicializa la tabla de páginas con los mapeos provistos
         self._inicializar_tabla_paginas(mapeo_paginas)
 
-        print("--- Parámetros del Traductor (cargados desde archivo) ---")
+        print("\n--- Parámetros del Traductor (cargados desde archivo) ---")
         print(f"Tamaño Memoria Virtual: {tamano_memoria_virtual}")
         print(f"Tamaño Memoria Física: {tamano_memoria_fisica}")
         print(f"Tamaño de Página: {tamano_pagina}")
         print("-" * 20)
-        print(f"Bits para desplazamiento: {self.bits_desplazamiento}")
+        print(f"Número total de páginas: {self.num_paginas}")
+        print(f"Número total de marcos: {self.num_marcos}")
+        print(f"Bits para dirección virtual: {self.bits_pagina_virtual + self.bits_desplazamiento}")
+        print(f"Bits para dirección física: {self.bits_direccion_fisica}")
         print(f"Bits para página virtual: {self.bits_pagina_virtual}")
         print(f"Bits para marco: {self.bits_marco}")
-        print(f"Bits para dirección física: {self.bits_direccion_fisica}")
+        print(f"Bits para desplazamiento: {self.bits_desplazamiento}")
         print(f"Máscara de desplazamiento: {imprimir_binario(self.mascara_desplazamiento, 16)} (0x{self.mascara_desplazamiento:X})")
         print("\n✅ Tabla de páginas inicializada desde el archivo.\n")
+
         self.imprimir_tabla_paginas()
         print("----------------------------------------------------------")
 
