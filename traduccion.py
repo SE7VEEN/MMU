@@ -17,10 +17,10 @@ class TraductorDeDirecciones:
         :param tamano_memoria_virtual: Tamaño total del espacio de direcciones virtual.
         :param tamano_memoria_fisica: Tamaño total de la memoria física.
         :param tamano_pagina: Tamaño fijo de cada página/marco (debe ser potencia de 2).
-        :param mapas_iniciales: Diccionario con mapeos iniciales {número_página: número_marco}.
+        :param mapeo_paginas: Diccionario con mapeos iniciales {número_página: número_marco}.
     """
 
-    def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapas_iniciales):
+    def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapeo_paginas):
         self.tamano_pagina = tamano_pagina
         self.num_paginas = tamano_memoria_virtual // tamano_pagina
         self.num_marcos = tamano_memoria_fisica // tamano_pagina
@@ -32,7 +32,7 @@ class TraductorDeDirecciones:
         self.tabla_de_paginas = {}
 
          # Inicializa la tabla de páginas con los mapeos provistos
-        self._inicializar_tabla_paginas(mapas_iniciales)
+        self._inicializar_tabla_paginas(mapeo_paginas)
 
         print("--- Parámetros del Traductor (cargados desde archivo) ---")
         print(f"Tamaño Memoria Virtual: {tamano_memoria_virtual}")
@@ -48,23 +48,23 @@ class TraductorDeDirecciones:
         self.imprimir_tabla_paginas()
         print("----------------------------------------------------------")
 
-    def _inicializar_tabla_paginas(self, mapas_iniciales):
+    def _inicializar_tabla_paginas(self, mapeo_paginas):
         """
         Inicializa la tabla de páginas con los mapeos dados.
         Marca como 'presente' (1) las páginas que tienen un marco asignado,
         y como 'no presente' (0) el resto de las páginas virtuales.
 
-            :param mapas_iniciales: Mapeos {número_página: número_marco}.
+            :param mapeo_paginas: Mapeos {número_página: número_marco}.
         """
         # Verifica si hay marcos duplicados en la configuración inicial
-        marcos_usados = set(mapas_iniciales.values())
-        if len(marcos_usados) != len(mapas_iniciales.values()):
+        marcos_usados = set(mapeo_paginas.values())
+        if len(marcos_usados) != len(mapeo_paginas.values()):
             print("⚠️ Advertencia: El archivo de configuración asigna el mismo marco a múltiples páginas.")
 
         # Recorre todas las posibles páginas virtuales:L Si la página está en los mapas iniciales, se asigna su marco y se marca como presente.
         for i in range(self.num_paginas):
-            if i in mapas_iniciales:
-                self.tabla_de_paginas[i] = {"marco": mapas_iniciales[i], "presente": 1}
+            if i in mapeo_paginas:
+                self.tabla_de_paginas[i] = {"marco": mapeo_paginas[i], "presente": 1}
             else:
                 self.tabla_de_paginas[i] = {"marco": 0, "presente": 0}
 
