@@ -35,15 +35,33 @@ class TraductorDeDirecciones:
     """
 
     def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapeo_paginas):
+        
+        if tamano_pagina <= 0 or (tamano_pagina & (tamano_pagina - 1)) != 0:
+            raise ValueError("El tamano de pagina debe ser potencia de 2 y > 0")
+        if tamano_memoria_virtual % tamano_pagina != 0:
+            raise ValueError("El tamano de memoria virtual debe ser divisible por el tamano de pagina")
+        if tamano_memoria_fisica % tamano_pagina != 0:
+            raise ValueError("El tamano de memoria fisica debe ser divisible por el tamano de pagina")
+
+      
         self.tamano_pagina = tamano_pagina
         self.num_paginas = tamano_memoria_virtual // tamano_pagina
         self.num_marcos = tamano_memoria_fisica // tamano_pagina
+        
         self.bits_desplazamiento = int(math.log2(tamano_pagina))
         self.bits_pagina_virtual = int(math.log2(self.num_paginas))
         self.bits_marco = int(math.log2(self.num_marcos))
         self.bits_direccion_fisica = int(math.log2(tamano_memoria_fisica))
+        
         self.mascara_desplazamiento = (1 << self.bits_desplazamiento) - 1
         self.tabla_de_paginas = {}
+        
+        # validamos el mapeo de paginas
+        for p, m in mapeo_paginas.items():
+            if not (0 <= p < self.num_paginas):
+                raise ValueError(f"Página {p} inválida (0..{self.num_paginas-1})")
+            if not (0 <= m < self.num_marcos):
+                raise ValueError(f"Marco {m} inválido (0..{self.num_marcos-1})")
 
          # Inicializa la tabla de páginas con los mapeos provistos
         self._inicializar_tabla_paginas(mapeo_paginas)
@@ -84,7 +102,7 @@ class TraductorDeDirecciones:
             if i in mapeo_paginas:
                 self.tabla_de_paginas[i] = {"marco": mapeo_paginas[i], "presente": 1}
             else:
-                self.tabla_de_paginas[i] = {"marco": 0, "presente": 0}
+                self.tabla_de_paginas[i] = {"marco": "n/a", "presente": 0}
 
     def imprimir_tabla_paginas(self):
         """Imprime la tabla de páginas en forma de tabla legible."""
@@ -118,7 +136,7 @@ class TraductorDeDirecciones:
         desplazamiento = direccion_virtual & self.mascara_desplazamiento
 
         print("\n1. Extracción de Componentes:")
-        print(f"   Número de Página = {direccion_virtual} >> {self.bits_desplazamiento}  = {numero_pagina}")
+        print(f"   Número de Página = {direccion_virtual} >> {self.bits_desplazamiento}  = {numero_pagina}") #
         print(f"   Desplazamiento   = {direccion_virtual} & {self.mascara_desplazamiento} = {desplazamiento} "
               f"(bin: {imprimir_binario(desplazamiento, self.bits_desplazamiento)}, hex: 0x{desplazamiento:X})")
         
