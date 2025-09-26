@@ -1,4 +1,3 @@
-import sys
 from traduccion import TraductorDeDirecciones
 from cargarDatos import cargar_configuracion_desde_archivo
 

@@ -1,3 +1,4 @@
+import sys
 def cargar_configuracion_desde_archivo(nombre_archivo):
     """Lee la configuración de memoria y el mapeo inicial de la tabla de páginas."""
     config = {}

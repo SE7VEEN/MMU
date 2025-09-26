@@ -1,11 +1,25 @@
 import math
+
+# Su propósito es asegurar que la representación binaria tenga la longitud de bits correcta.
 def imprimir_binario(n, bits):
     """Imprime un número en formato binario con espacios."""
     mascara = (1 << bits) - 1
     bin_str = format(n & mascara, f'0{bits}b')
     return ' '.join(bin_str[i:i+4] for i in range(0, len(bin_str), 4))
 
+
+
 class TraductorDeDirecciones:
+    """
+    Simula la Unidad de Gestión de Memoria (MMU) para la traducción de
+    direcciones virtuales a físicas mediante un esquema de paginación.
+
+        :param tamano_memoria_virtual: Tamaño total del espacio de direcciones virtual.
+        :param tamano_memoria_fisica: Tamaño total de la memoria física.
+        :param tamano_pagina: Tamaño fijo de cada página/marco (debe ser potencia de 2).
+        :param mapas_iniciales: Diccionario con mapeos iniciales {número_página: número_marco}.
+    """
+
     def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapas_iniciales):
         self.tamano_pagina = tamano_pagina
         self.num_paginas = tamano_memoria_virtual // tamano_pagina
@@ -17,6 +31,7 @@ class TraductorDeDirecciones:
         self.mascara_desplazamiento = (1 << self.bits_desplazamiento) - 1
         self.tabla_de_paginas = {}
 
+         # Inicializa la tabla de páginas con los mapeos provistos
         self._inicializar_tabla_paginas(mapas_iniciales)
 
         print("--- Parámetros del Traductor (cargados desde archivo) ---")
@@ -34,10 +49,19 @@ class TraductorDeDirecciones:
         print("----------------------------------------------------------")
 
     def _inicializar_tabla_paginas(self, mapas_iniciales):
+        """
+        Inicializa la tabla de páginas con los mapeos dados.
+        Marca como 'presente' (1) las páginas que tienen un marco asignado,
+        y como 'no presente' (0) el resto de las páginas virtuales.
+
+            :param mapas_iniciales: Mapeos {número_página: número_marco}.
+        """
+        # Verifica si hay marcos duplicados en la configuración inicial
         marcos_usados = set(mapas_iniciales.values())
         if len(marcos_usados) != len(mapas_iniciales.values()):
             print("⚠️ Advertencia: El archivo de configuración asigna el mismo marco a múltiples páginas.")
 
+        # Recorre todas las posibles páginas virtuales:L Si la página está en los mapas iniciales, se asigna su marco y se marca como presente.
         for i in range(self.num_paginas):
             if i in mapas_iniciales:
                 self.tabla_de_paginas[i] = {"marco": mapas_iniciales[i], "presente": 1}
@@ -56,10 +80,23 @@ class TraductorDeDirecciones:
         print("--------------------------------------------------")
 
     def traducir(self, direccion_virtual):
+
+        """
+        Realiza la traducción de una dirección virtual (DV) a una dirección física (DF)
+        utilizando la tabla de páginas.
+
+        :param direccion_virtual: La dirección virtual a traducir (entero).
+        """
+
         print(f"\n--- Traduciendo Dirección Virtual: 0x{direccion_virtual:X} ---")
         print(f"DV en binario ({self.bits_pagina_virtual + self.bits_desplazamiento} bits): {imprimir_binario(direccion_virtual, self.bits_pagina_virtual + self.bits_desplazamiento)}")
         
+        # El número de página virtual (VP) se obtiene desplazando la DV a la derecha
+        # la cantidad de bits del desplazamiento (bits_desplazamiento).
         numero_pagina = direccion_virtual >> self.bits_desplazamiento
+
+        # El desplazamiento (offset) se obtiene aplicando la máscara AND al final de la DV.
+        # Esto aísla los bits menos significativos (el campo de desplazamiento).    
         desplazamiento = direccion_virtual & self.mascara_desplazamiento
 
         print("\n1. Extracción de Componentes:")
@@ -81,6 +118,11 @@ class TraductorDeDirecciones:
 
         print(f"   -> ✅ La página está presente en memoria.")
         numero_marco = entrada_tabla["marco"]
+
+        # La DF se calcula reemplazando el Número de Página Virtual por el Número de Marco Físico
+        # y concatenando el Desplazamiento.
+        # Marco_Físico << bits_desplazamiento: Coloca el número de marco en los bits altos.
+        # | desplazamiento: Añade el desplazamiento original en los bits bajos.
         direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
 
         print("\n3. Cálculo de la Dirección Física:")
