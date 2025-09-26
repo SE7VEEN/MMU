@@ -1,112 +1,163 @@
-# Programa Python: Transformación de direcciones y comparación de reemplazo de páginas (FIFO vs LRU)
+import math
+import sys
 
-from collections import deque, OrderedDict
+def imprimir_binario(n, bits):
+    """Imprime un número en formato binario con espacios."""
+    mascara = (1 << bits) - 1
+    bin_str = format(n & mascara, f'0{bits}b')
+    return ' '.join(bin_str[i:i+4] for i in range(0, len(bin_str), 4))
 
-# --- Funciones de direcciones ---
-def split_address(bin_str, offset_bits):
-    total_bits = len(bin_str)
-    page_bits = total_bits - offset_bits
-    page_bin = bin_str[:page_bits]
-    offset_bin = bin_str[page_bits:]
-    return page_bin, offset_bin
+def cargar_configuracion_desde_archivo(nombre_archivo):
+    """Lee la configuración de memoria y el mapeo inicial de la tabla de páginas."""
+    config = {}
+    mapas_iniciales = {}
+    try:
+        with open(nombre_archivo, 'r') as f:
+            modo_mapas = False
+            for linea in f:
+                linea = linea.strip()
+                if not linea or linea.startswith('#'):
+                    continue
+                
+                if linea == 'MAPEOS:':
+                    modo_mapas = True
+                    continue
+                
+                clave, valor = linea.split(':', 1)
+                clave = clave.strip()
+                valor = valor.strip()
 
-def pretty_print_address_info(name, bin_str, offset_bits):
-    page_bin, offset_bin = split_address(bin_str, offset_bits)
-    page_val = int(page_bin, 2)
-    offset_val = int(offset_bin, 2)
-    full_val = int(bin_str, 2)
-    print(f"--- {name} ---")
-    print(f"Longitud total (bits): {len(bin_str)}")
-    print(f"Offset (bits): {offset_bits}")
-    print(f"Bits de página: {len(page_bin)}")
-    print(f"Página (bin): {page_bin}  -> (dec): {page_val}  -> (hex): {hex(page_val)}")
-    print(f"Offset (bin): {offset_bin}  -> (dec): {offset_val}  -> (hex): {hex(offset_val)}")
-    print(f"Dirección completa (bin): {bin_str}  -> (dec): {full_val}  -> (hex): {hex(full_val)}\n")
+                if modo_mapas:
+                    mapas_iniciales[int(clave)] = int(valor)
+                else:
+                    config[clave] = int(valor)
 
-# --- Algoritmos de reemplazo ---
-def fifo_replacement(trace, num_frames):
-    frames = deque()
-    in_frame = set()
-    faults = 0
-    timeline = []
-    for page in trace:
-        hit = page in in_frame
-        if not hit:
-            faults += 1
-            if len(frames) < num_frames:
-                frames.append(page)
-                in_frame.add(page)
+        if not all(k in config for k in ['TAMANO_MEMORIA_VIRTUAL', 'TAMANO_MEMORIA_FISICA', 'TAMANO_PAGINA']):
+            raise KeyError("El archivo de configuración no contiene todas las claves de memoria necesarias.")
+            
+        return config, mapas_iniciales
+    except FileNotFoundError:
+        print(f"❌ Error: No se encontró el archivo '{nombre_archivo}'.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Error al procesar el archivo de configuración: {e}")
+        sys.exit(1)
+
+class TraductorDeDirecciones:
+    def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapas_iniciales):
+        self.tamano_pagina = tamano_pagina
+        self.num_paginas = tamano_memoria_virtual // tamano_pagina
+        self.num_marcos = tamano_memoria_fisica // tamano_pagina
+        self.bits_desplazamiento = int(math.log2(tamano_pagina))
+        self.bits_pagina_virtual = int(math.log2(self.num_paginas))
+        self.bits_marco = int(math.log2(self.num_marcos))
+        self.bits_direccion_fisica = int(math.log2(tamano_memoria_fisica))
+        self.mascara_desplazamiento = (1 << self.bits_desplazamiento) - 1
+        self.tabla_de_paginas = {}
+
+        self._inicializar_tabla_paginas(mapas_iniciales)
+
+        print("--- Parámetros del Traductor (cargados desde archivo) ---")
+        print(f"Tamaño Memoria Virtual: {tamano_memoria_virtual}")
+        print(f"Tamaño Memoria Física: {tamano_memoria_fisica}")
+        print(f"Tamaño de Página: {tamano_pagina}")
+        print("-" * 20)
+        print(f"Bits para desplazamiento: {self.bits_desplazamiento}")
+        print(f"Bits para página virtual: {self.bits_pagina_virtual}")
+        print(f"Bits para marco: {self.bits_marco}")
+        print(f"Bits para dirección física: {self.bits_direccion_fisica}")
+        print(f"Máscara de desplazamiento: {imprimir_binario(self.mascara_desplazamiento, 16)} (0x{self.mascara_desplazamiento:X})")
+        print("\n✅ Tabla de páginas inicializada desde el archivo.\n")
+        self.imprimir_tabla_paginas()
+        print("----------------------------------------------------------")
+
+    def _inicializar_tabla_paginas(self, mapas_iniciales):
+        marcos_usados = set(mapas_iniciales.values())
+        if len(marcos_usados) != len(mapas_iniciales.values()):
+            print("⚠️ Advertencia: El archivo de configuración asigna el mismo marco a múltiples páginas.")
+
+        for i in range(self.num_paginas):
+            if i in mapas_iniciales:
+                self.tabla_de_paginas[i] = {"marco": mapas_iniciales[i], "presente": 1}
             else:
-                old = frames.popleft()
-                in_frame.remove(old)
-                frames.append(page)
-                in_frame.add(page)
-        timeline.append((page, list(frames), hit))
-    return {"faults": faults, "final_frames": list(frames), "timeline": timeline}
+                self.tabla_de_paginas[i] = {"marco": 0, "presente": 0}
 
-def lru_replacement(trace, num_frames):
-    frames = OrderedDict()
-    faults = 0
-    timeline = []
-    for page in trace:
-        hit = page in frames
-        if hit:
-            frames.move_to_end(page)
-        else:
-            faults += 1
-            if len(frames) < num_frames:
-                frames[page] = True
-            else:
-                oldest = next(iter(frames))
-                del frames[oldest]
-                frames[page] = True
-        timeline.append((page, list(frames.keys()), hit))
-    return {"faults": faults, "final_frames": list(frames.keys()), "timeline": timeline}
+    def imprimir_tabla_paginas(self):
+        """Imprime la tabla de páginas en forma de tabla legible."""
+        print("📘 Tabla de Páginas:")
+        print("--------------------------------------------------")
+        print(f"{'Página':<10}{'Marco':<10}{'Presente':<10}")
+        print("--------------------------------------------------")
+        for pagina, datos in self.tabla_de_paginas.items():
+            presente = "1" if datos['presente'] == 1 else "0"
+            print(f"{pagina:<10}{datos['marco']:<10}{presente:<10}")
+        print("--------------------------------------------------")
 
+    def traducir(self, direccion_virtual):
+        print(f"\n--- Traduciendo Dirección Virtual: 0x{direccion_virtual:X} ---")
+        print(f"DV en binario ({self.bits_pagina_virtual + self.bits_desplazamiento} bits): {imprimir_binario(direccion_virtual, self.bits_pagina_virtual + self.bits_desplazamiento)}")
+        
+        numero_pagina = direccion_virtual >> self.bits_desplazamiento
+        desplazamiento = direccion_virtual & self.mascara_desplazamiento
 
-# ================== DEMO ==================
-virtual_bin = "01100010101010111100"   # dirección virtual (20 bits)
-physical_bin = "0000111111001110"      # dirección física (16 bits)
-offset_bits = 8                        # desplazamiento
+        print("\n1. Extracción de Componentes:")
+        print(f"   Número de Página = {direccion_virtual} >> {self.bits_desplazamiento}  = {numero_pagina}")
+        print(f"   Desplazamiento   = {direccion_virtual} & {self.mascara_desplazamiento} = {desplazamiento} "
+              f"(bin: {imprimir_binario(desplazamiento, self.bits_desplazamiento)}, hex: 0x{desplazamiento:X})")
+        
+        print("\n2. Consulta a la Tabla de Páginas:")
+        if numero_pagina not in self.tabla_de_paginas:
+            print(f"   ❌ Error: La página {numero_pagina} es inválida para este espacio de direcciones.")
+            return
 
-# Info de direcciones
-pretty_print_address_info("Dirección virtual", virtual_bin, offset_bits)
-pretty_print_address_info("Dirección física", physical_bin, offset_bits)
+        entrada_tabla = self.tabla_de_paginas[numero_pagina]
+        print(f"   -> Entrada para página {numero_pagina}: {entrada_tabla}")
 
-# --- Cálculos de tamaños ---
-virtual_address_bits = len(virtual_bin)
-physical_address_bits = len(physical_bin)
-page_size = 2 ** offset_bits
-virtual_space = 2 ** virtual_address_bits
-physical_space = 2 ** physical_address_bits
-num_virtual_pages = virtual_space // page_size
-num_physical_frames = physical_space // page_size
+        if entrada_tabla["presente"] == 0:
+            print(f"   ❌ FALLO DE PÁGINA: La página {numero_pagina} no está cargada en memoria.")
+            return
 
-print("### Tamaños y capacidades ###")
-print(f"Tamaño de página = {page_size} bytes")
-print(f"Espacio de direcciones virtual = {virtual_space} bytes")
-print(f"Memoria física = {physical_space} bytes")
-print(f"Número de páginas virtuales = {num_virtual_pages}")
-print(f"Número de marcos físicos = {num_physical_frames}\n")
+        print(f"   -> ✅ La página está presente en memoria.")
+        numero_marco = entrada_tabla["marco"]
+        direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
 
-# --- Traza de ejemplo ---
-vpage_bin, _ = split_address(virtual_bin, offset_bits)
-vpage = int(vpage_bin, 2)
-page_trace = [2, 3, 2, 1, vpage, 4, 2, 3, 5, vpage, 6, 2, 7, 3, 2]
-print("Traza de acceso a páginas:", page_trace, "\n")
+        print("\n3. Cálculo de la Dirección Física:")
+        print(f"   Fórmula: (marco << bits_desplazamiento) | desplazamiento")
+        print(f"   Cálculo: ({numero_marco} << {self.bits_desplazamiento}) | {desplazamiento} = {direccion_fisica}")
+        print(f"   Bits del marco: {self.bits_marco}, Bits de dirección física: {self.bits_direccion_fisica}")
 
-# --- Comparación FIFO vs LRU ---
-demo_frames = 4
-fifo_res = fifo_replacement(page_trace, demo_frames)
-lru_res = lru_replacement(page_trace, demo_frames)
+        print("\n--- Resultado ---")
+        print(f"Dirección Física: binario = {imprimir_binario(direccion_fisica, self.bits_direccion_fisica)}")
+        print(f"                   hexadecimal = 0x{direccion_fisica:X}")
+        print("-----------------")
 
-print(f"Comparación (marcos = {demo_frames}):")
-print(f"FIFO -> Fallos: {fifo_res['faults']} | Marcos finales: {fifo_res['final_frames']}")
-print(f"LRU  -> Fallos: {lru_res['faults']} | Marcos finales: {lru_res['final_frames']}\n")
+# --- Ejecución del Programa ---
+if __name__ == "__main__":
+    try:
+        configuracion, mapas = cargar_configuracion_desde_archivo('config.txt')
+        
+        traductor = TraductorDeDirecciones(
+            configuracion['TAMANO_MEMORIA_VIRTUAL'],
+            configuracion['TAMANO_MEMORIA_FISICA'],
+            configuracion['TAMANO_PAGINA'],
+            mapas
+        )
+        
+        print("\n--- Listo para traducir ---")
+        while True:
+            dv_str = input("Ingrese una dirección virtual en HEXADECIMAL (ej. 0x1A2F) o 'q' para salir: ")
+            if dv_str.lower() == 'q':
+                break
+            
+            try:
+                direccion_virtual = int(dv_str, 16)
+            except ValueError:
+                print("❌ Entrada inválida. Use formato hexadecimal (ej: 0x1A2F o 1A2F).")
+                continue
 
-print("Detalle de los primeros accesos:")
-print("Acceso | FIFO_frames (hit?)        | LRU_frames (hit?)")
-for i, page in enumerate(page_trace[:12]):
-    f_page, f_frames, f_hit = fifo_res['timeline'][i]
-    l_page, l_frames, l_hit = lru_res['timeline'][i]
-    print(f"{page:6} | {f_frames!s:22} ({'H' if f_hit else 'M'}) | {l_frames!s:22} ({'H' if l_hit else 'M'})")
+            traductor.traducir(direccion_virtual)
+
+    except (ValueError, KeyError) as e:
+        print(f"\nError durante la ejecución: {e}")
+    except KeyboardInterrupt:
+        print("\n\nSimulación interrumpida.")
