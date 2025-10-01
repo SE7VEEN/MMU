@@ -15,34 +15,48 @@
 import sys
 
 def cargar_configuracion_desde_archivo(nombre_archivo):
-    """Lee la configuración de memoria y el mapeo inicial de la tabla de páginas."""
-    config = {} #Parametros globales(tamanos de memoria y pagina)
-    mapeo_paginas = {} #{0: 3, 1: 2, 2: 5, etc...}
+    """
+    Lee la configuración de memoria y el mapeo inicial de la tabla de páginas 
+    (usando el valor empaquetado de la entrada).
+    """
+    config = {}
+    # Ahora almacenamos el valor empaquetado: {número_página: Entrada_Tabla_de_páginas}
+    tabla_empaquetada = {} 
+    
     try:
         with open(nombre_archivo, 'r') as f:
-            modo_mapas = False #Para distinguir la seccion de configuracion de la de mapeos  
+            modo_mapas = False 
             for linea in f:
                 linea = linea.strip()
-                if not linea or linea.startswith('#'): #Ignoramos los comentarios y lineas vacias
+                if not linea or linea.startswith('#'): 
                     continue
                 
-                if linea == 'MAPEOS:':
+                if linea == 'MAPEOS_EMPAQUETADOS:': # Cambié el marcador para claridad
                     modo_mapas = True
                     continue
                 
-                pagina, marco = linea.split(':', 1) #Dividimos la linea en pagina y marco
-                pagina = pagina.strip() #Evitamos saltos de linea innecesarios
-                marco = marco.strip()
+                # Intentar dividir en clave:valor
+                try:
+                    clave, valor = linea.split(':', 1)
+                    clave = clave.strip()
+                    valor = valor.strip()
+                except ValueError:
+                    print(f"❌ Error de formato en línea: '{linea}'. Esperando 'clave:valor'.")
+                    continue
 
                 if modo_mapas:
-                    mapeo_paginas[int(pagina)] = int(marco) #Añadimos la pagina con su marco al diccionario
+                    # En modo mapeos, la CLAVE es el NÚMERO DE PÁGINA, 
+                    # y el VALOR es la ENTRADA EMPAQUETADA (decimal)
+                    tabla_empaquetada[int(clave)] = int(valor) 
                 else:
-                    config[pagina] = int(marco)
+                    # En modo config, la CLAVE es el NOMBRE del parámetro y el VALOR es su tamaño
+                    config[clave] = int(valor)
 
-        if not all(k in config for k in ['TAMANO_MEMORIA_VIRTUAL', 'TAMANO_MEMORIA_FISICA', 'TAMANO_PAGINA']): #Verificamos que config contenga las claves necesarias 
+        if not all(k in config for k in ['TAMANO_MEMORIA_VIRTUAL', 'TAMANO_MEMORIA_FISICA', 'TAMANO_PAGINA']):
             raise KeyError("El archivo de configuración no contiene todas las claves de memoria necesarias.")
             
-        return config, mapeo_paginas
+        return config, tabla_empaquetada
+    
     except FileNotFoundError:
         print(f"❌ Error: No se encontró el archivo '{nombre_archivo}'.")
         sys.exit(1)

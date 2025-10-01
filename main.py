@@ -12,7 +12,7 @@
 #   simulando una Unidad de Gestión de Memoria (MMU).
 
 
-from traduccion import TraductorDeDirecciones
+from traduccion1 import TraductorDeDirecciones
 from cargarDatos import cargar_configuracion_desde_archivo
 
 if __name__ == "__main__":
