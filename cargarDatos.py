@@ -20,7 +20,6 @@ def cargar_configuracion_desde_archivo(nombre_archivo):
     (usando el valor empaquetado de la entrada).
     """
     config = {}
-    # Ahora almacenamos el valor empaquetado: {número_página: Entrada_Tabla_de_páginas}
     tabla_empaquetada = {} 
     
     try:
@@ -31,11 +30,10 @@ def cargar_configuracion_desde_archivo(nombre_archivo):
                 if not linea or linea.startswith('#'): 
                     continue
                 
-                if linea == 'MAPEOS_EMPAQUETADOS:': # Cambié el marcador para claridad
+                if linea == 'MAPEOS_EMPAQUETADOS:': 
                     modo_mapas = True
                     continue
                 
-                # Intentar dividir en clave:valor
                 try:
                     clave, valor = linea.split(':', 1)
                     clave = clave.strip()
@@ -45,11 +43,10 @@ def cargar_configuracion_desde_archivo(nombre_archivo):
                     continue
 
                 if modo_mapas:
-                    # En modo mapeos, la CLAVE es el NÚMERO DE PÁGINA, 
-                    # y el VALOR es la ENTRADA EMPAQUETADA (decimal)
+                
                     tabla_empaquetada[int(clave)] = int(valor) 
                 else:
-                    # En modo config, la CLAVE es el NOMBRE del parámetro y el VALOR es su tamaño
+
                     config[clave] = int(valor)
 
         if not all(k in config for k in ['TAMANO_MEMORIA_VIRTUAL', 'TAMANO_MEMORIA_FISICA', 'TAMANO_PAGINA']):
