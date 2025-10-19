@@ -327,6 +327,9 @@ class TraductorDeDirecciones:
         self.frecuencias_uso[numero_pagina] = self.frecuencias_uso.get(numero_pagina, 0) + 1
         direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
 
+        # Mostrar tabla actualizada
+        self.imprimir_tabla_paginas_empaquetada()
+
         print(f"   ✅ La página está presente en el Marco {numero_marco}.")
         print("\n3. Cálculo de la Dirección Física:")
         if self.bits_marco > 0:
