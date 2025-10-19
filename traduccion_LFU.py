@@ -234,13 +234,21 @@ class TraductorDeDirecciones:
                 print(f"{marco:<10}{'---':<10}{'---':<10}")
         print("--------------------------------------------")
 
-    def traducir(self, direccion_virtual):
+    
+    def traducir(self, direccion_virtual_hex_str):
         """
         Realiza la traducción de una dirección virtual (DV) a una dirección física (DF).
         Devuelve la dirección física (int) o None si hay fallo de página / error.
         """
+        
+        try:
+            direccion_virtual = int(str(direccion_virtual_hex_str), 16)
+        except ValueError:
+            print(f"\n   ❌ Error: Dirección virtual '{direccion_virtual_hex_str}' no es un formato hexadecimal válido.")
+            
+            
         max_bits_dv = self.bits_pagina_virtual + self.bits_desplazamiento  # Bits para representar la DV
-        print(f"\n--- Traduciendo Dirección Virtual: {direccion_virtual} (0x{direccion_virtual:X}) ---")
+        print(f"\n--- Traduciendo Dirección Virtual: {direccion_virtual_hex_str} (0x{direccion_virtual:X}) ---")
         print(f"DV en binario ({max_bits_dv} bits): {imprimir_binario(direccion_virtual, max_bits_dv)}")
 
         # 1. Extracción de Número de Página y Desplazamiento

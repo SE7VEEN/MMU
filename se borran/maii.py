@@ -12,7 +12,6 @@
 #   simulando una Unidad de Gestión de Memoria (MMU).
 
 
-
 from traduccion_LFU import TraductorDeDirecciones
 from cargarDatos import cargar_configuracion_desde_archivo
 
