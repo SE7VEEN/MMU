@@ -104,7 +104,7 @@ class TraductorDeDirecciones:
 
         # Imprimir estado inicial
         self.imprimir_tabla_paginas_empaquetada()
-        print("----------------------------------------------------------")
+        
 
     def _inicializar_tabla_paginas(self, tabla_empaquetada):
         """
@@ -173,6 +173,7 @@ class TraductorDeDirecciones:
         print(f"Marcos ocupados: {sorted(list(self.marcos_ocupados))}")
         print(f"Fallos de página (acumulados): {self.fallos_pagina}")
         print("-------------------------------------------------------------------------------")    
+        self.imprimir_tabla_memoria_fisica()
 
 
     def _encontrar_marco_libre(self):
@@ -212,6 +213,26 @@ class TraductorDeDirecciones:
         # marcos ocupados no cambian (el marco sigue ocupado)
         # retornar marco asignado
         return marco_liberado
+    
+    def imprimir_tabla_memoria_fisica(self):
+        """Muestra la tabla de memoria física: Marco, Página cargada, y frecuencia de uso."""
+        print("\n>>  Tabla de Memoria Física:  <<")
+        print("--------------------------------------------")
+        print(f"{'Marco':<10}{'Página':<10}{'Frecuencia de uso':<10}")
+        print("--------------------------------------------")
+        for marco in range(self.num_marcos):
+            pagina_actual = None
+            for pagina, entrada in self.tabla_de_paginas.items():
+                desem = self.desempaquetar_entrada(entrada)
+                if desem["presente"] == 1 and desem["marco"] == marco:
+                    pagina_actual = pagina
+                    break
+            if pagina_actual is not None:
+                frecuencia = self.frecuencias_uso.get(pagina_actual, 0)
+                print(f"{marco:<10}{pagina_actual:<10}{frecuencia:<10}")
+            else:
+                print(f"{marco:<10}{'---':<10}{'---':<10}")
+        print("--------------------------------------------")
 
     def traducir(self, direccion_virtual):
         """
@@ -277,6 +298,8 @@ class TraductorDeDirecciones:
             # 🔁 CONTINUAR AUTOMÁTICAMENTE CON LA TRADUCCIÓN DESPUÉS DEL REEMPLAZO
             numero_marco = marco_asignado
             direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
+            
+            
             print("\n3. Cálculo de la Dirección Física (tras el reemplazo):")
             if self.bits_marco > 0:
                 print(f"   Marco binario: {imprimir_binario(numero_marco, self.bits_marco)}")
@@ -288,8 +311,10 @@ class TraductorDeDirecciones:
             print(f"📈 Frecuencia de uso página {numero_pagina}: {self.frecuencias_uso[numero_pagina]}")
             print(f"🔢 Fallos de página acumulados: {self.fallos_pagina}")
             print("----------------------------------")
+            
             return direccion_fisica
-
+        
+        
         # ---------------- PÁGINA PRESENTE ----------------
         self.frecuencias_uso[numero_pagina] = self.frecuencias_uso.get(numero_pagina, 0) + 1
         direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
