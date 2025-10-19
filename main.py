@@ -12,12 +12,12 @@
 #   simulando una Unidad de Gestión de Memoria (MMU).
 
 
-from traduccion1 import TraductorDeDirecciones
+from traduccion_LFU import TraductorDeDirecciones
 from cargarDatos import cargar_configuracion_desde_archivo
 
 if __name__ == "__main__":
     try:
-        configuracion, mapas = cargar_configuracion_desde_archivo('config.txt')
+        configuracion, mapas = cargar_configuracion_desde_archivo('config1.txt')
         
         traductor = TraductorDeDirecciones(
             configuracion['TAMANO_MEMORIA_VIRTUAL'],

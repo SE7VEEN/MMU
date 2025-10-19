@@ -1,41 +1,36 @@
-#   Implementación de un traductor de direcciones de memoria virtual a física
-#   Universidad Autónoma de Puebla
-#   Facultad de Ciencias de la Computación
-#   Materia: Sistemas Operativos II
-#   date 25/09/2025
-#   Integrantes:
-#    -Jose Antonio Rodriguez Maldonado  202250718
-#    -Jose Luis Santiago Ibañez         202253693
-#    -Jorge Luis Vergara Mora           202256565
-#   Objetivo:
-#   Implementar un sistema de traducción de direcciones mediante paginación
-#   simulando una Unidad de Gestión de Memoria (MMU).
-
-
 import math
 
 # Su propósito es asegurar que la representación binaria tenga la longitud de bits correcta.
 def imprimir_binario(n, bits):
-    """Imprime un número en formato binario con espacios."""
+    """Imprime un número en formato binario con espacios cada 4 bits, agrupando desde la derecha."""
+    if bits <= 0:
+        return "0"
     mascara = (1 << bits) - 1
     bin_str = format(n & mascara, f'0{bits}b')
-    return ' '.join(bin_str[i:i+4] for i in range(0, len(bin_str), 4))
+
+    # Calcular el tamaño del primer grupo (puede ser menor a 4)
+    resto = len(bin_str) % 4
+    grupos = []
+    if resto != 0:
+        grupos.append(bin_str[:resto])
+    # Agregar los grupos restantes de 4 bits
+    grupos.extend(bin_str[resto + i:resto + i + 4] for i in range(0, len(bin_str) - resto, 4))
+    
+    return ' '.join(grupos)
 
 
 
 class TraductorDeDirecciones:
     """
     Simula la Unidad de Gestión de Memoria (MMU) para la traducción de
-    direcciones virtuales a físicas mediante un esquema de paginación.
-
-        :param tamano_memoria_virtual: Tamaño total del espacio de direcciones virtual.
-        :param tamano_memoria_fisica: Tamaño total de la memoria física.
-        :param tamano_pagina: Tamaño fijo de cada página/marco (debe ser potencia de 2).
-        :param mapeo_paginas: Diccionario con mapeos iniciales {número_página: número_marco}.
+    direcciones virtuales a físicas mediante paginación con entradas empaquetadas.
     """
 
-    def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, mapeo_paginas):
-        
+    def __init__(self, tamano_memoria_virtual, tamano_memoria_fisica, tamano_pagina, tabla_empaquetada):
+        # --- Validaciones iniciales ---
+        def es_potencia_de_dos(x):
+            return x > 0 and (x & (x - 1)) == 0
+
         if tamano_pagina <= 0 or (tamano_pagina & (tamano_pagina - 1)) != 0:
             raise ValueError("El tamano de pagina debe ser potencia de 2 y > 0")
         if tamano_memoria_virtual % tamano_pagina != 0:
@@ -43,130 +38,171 @@ class TraductorDeDirecciones:
         if tamano_memoria_fisica % tamano_pagina != 0:
             raise ValueError("El tamano de memoria fisica debe ser divisible por el tamano de pagina")
 
-      
+        # Comprobamos que los tamaños totales sean potencias de 2 para que log2 sea entero
+        if not es_potencia_de_dos(tamano_memoria_virtual):
+            raise ValueError("tamano_memoria_virtual debe ser potencia de 2")
+        if not es_potencia_de_dos(tamano_memoria_fisica):
+            raise ValueError("tamano_memoria_fisica debe ser potencia de 2")
+
+        # --- Parámetros básicos ---
         self.tamano_pagina = tamano_pagina
         self.num_paginas = tamano_memoria_virtual // tamano_pagina
         self.num_marcos = tamano_memoria_fisica // tamano_pagina
-        
+
         self.bits_desplazamiento = int(math.log2(tamano_pagina))
         self.bits_pagina_virtual = int(math.log2(self.num_paginas))
-        self.bits_marco = int(math.log2(self.num_marcos))
+        self.bits_marco = 0 if self.num_marcos <= 1 else int((math.log2(self.num_marcos)))
         self.bits_direccion_fisica = int(math.log2(tamano_memoria_fisica))
-        
+
         self.mascara_desplazamiento = (1 << self.bits_desplazamiento) - 1
+
+        # --- Diseño del campo empaquetado ---
+        # FIJAMOS 5 bits de control 
+        self.BITS_CONTROL_TOTAL = 5
+        self.BITS_PRESENTE = 1  # dentro de esos 5 bits, el primero es el bit P/A
+        if self.BITS_CONTROL_TOTAL < self.BITS_PRESENTE:
+            raise ValueError("BITS_CONTROL_TOTAL debe ser >= BITS_PRESENTE")############
+
+        # Tamano total (bits) de cada entrada empaquetada.
+        self.ENTRADA_BITS = self.bits_marco + self.BITS_CONTROL_TOTAL
+    
+
+        # --- Generación de máscaras ---
+        # Orden: [bits de control] [bits de marco]
+        self.MASK_CONTROL = ((1 << self.BITS_CONTROL_TOTAL) - 1) << self.bits_marco #Aisla los bits de control de la entrada
+        self.MASK_MARCO = (1 << self.bits_marco) - 1 #Aisla los bits del marco
+
+        self.SHIFT_PRESENTE = self.bits_marco  # primer bit del campo control
+        self.MASK_PRESENTE = 1 << self.SHIFT_PRESENTE #Aisla el bit P/A
+
+        # tabla de páginas 
         self.tabla_de_paginas = {}
-        
-        # validamos el mapeo de paginas
-        for p, m in mapeo_paginas.items():
-            if not (0 <= p < self.num_paginas):
-                raise ValueError(f"Página {p} inválida (0..{self.num_paginas-1})")
-            if not (0 <= m < self.num_marcos):
-                raise ValueError(f"Marco {m} inválido (0..{self.num_marcos-1})")
+        self._inicializar_tabla_paginas(tabla_empaquetada)
 
-         # Inicializa la tabla de páginas con los mapeos provistos
-        self._inicializar_tabla_paginas(mapeo_paginas)
-
+        # --- Impresiones informativas ---
         print("\n--- Parámetros del Traductor (cargados desde archivo) ---")
-        print(f"Tamaño Memoria Virtual: {tamano_memoria_virtual}")
-        print(f"Tamaño Memoria Física: {tamano_memoria_fisica}")
-        print(f"Tamaño de Página: {tamano_pagina}")
-        print("-" * 20)
+        print(f"Tamaño Memoria Virtual: {tamano_memoria_virtual} bytes")
+        print(f"Tamaño Memoria Física: {tamano_memoria_fisica} bytes")
+        print(f"Tamaño de Página: {tamano_pagina} bytes")
+        print("-" * 40)
         print(f"Número total de páginas: {self.num_paginas}")
         print(f"Número total de marcos: {self.num_marcos}")
-        print(f"Bits para dirección virtual: {self.bits_pagina_virtual + self.bits_desplazamiento}")
-        print(f"Bits para dirección física: {self.bits_direccion_fisica}")
         print(f"Bits para página virtual: {self.bits_pagina_virtual}")
-        print(f"Bits para marco: {self.bits_marco}")
+        print(f"Bits para marco (calculados): {self.bits_marco}")
         print(f"Bits para desplazamiento: {self.bits_desplazamiento}")
-        print(f"Máscara de desplazamiento: {imprimir_binario(self.mascara_desplazamiento, 16)} (0x{self.mascara_desplazamiento:X})")
-        print("\n✅ Tabla de páginas inicializada desde el archivo.\n")
+        print(f"Bits para dirección física: {self.bits_direccion_fisica}")
+        print(f"Tamaño Entrada Empaquetada (bits): {self.ENTRADA_BITS}")
+        print(f"MASCARA_MARCO (hex): 0x{self.MASK_MARCO:X}")
+        print(f"MASCARA_PRESENTE (hex): 0x{self.MASK_PRESENTE:X} (bit pos {self.SHIFT_PRESENTE})")
+        print("\n✅ Tabla de páginas inicializada desde el archivo con valores empaquetados.\n")
 
-        self.imprimir_tabla_paginas()
+        self.imprimir_tabla_paginas_empaquetada()
         print("----------------------------------------------------------")
 
-    def _inicializar_tabla_paginas(self, mapeo_paginas):
+    def _inicializar_tabla_paginas(self, tabla_empaquetada):
         """
-        Inicializa la tabla de páginas con los mapeos dados.
-        Marca como 'presente' (1) las páginas que tienen un marco asignado,
-        y como 'no presente' (0) el resto de las páginas virtuales.
-
-            :param mapeo_paginas: Mapeos {número_página: número_marco}.
+        Inicializa la tabla de páginas, guardando el valor 'empaquetado' 
+        (Entrada de Tabla de Páginas) o 0 si no hay entrada. Valida rangos. 
         """
-        # Verifica si hay marcos duplicados en la configuración inicial
-        marcos_usados = set(mapeo_paginas.values())
-        if len(marcos_usados) != len(mapeo_paginas.values()):
-            print("⚠️ Advertencia: El archivo de configuración asigna el mismo marco a múltiples páginas.")
-
-        # Recorre todas las posibles páginas virtuales:L Si la página está en los mapas iniciales, se asigna su marco y se marca como presente.
+        # primero llenar con 0 por defecto
         for i in range(self.num_paginas):
-            if i in mapeo_paginas:
-                self.tabla_de_paginas[i] = {"marco": mapeo_paginas[i], "presente": 1}
-            else:
-                self.tabla_de_paginas[i] = {"marco": "n/a", "presente": 0}
+            self.tabla_de_paginas[i] = 0 ################
 
-    def imprimir_tabla_paginas(self):
-        """Imprime la tabla de páginas en forma de tabla legible."""
+        # ahora cargar las entradas provistas
+        for pagina, entrada in tabla_empaquetada.items():
+            # asegurar tipos int (por si vienen como strings)
+            try:
+                pagina_int = int(pagina)
+                entrada_int = int(entrada)
+            except Exception:
+                raise ValueError(f"Clave/valor inválido en tabla_empaquetada: {pagina}->{entrada}")
+
+            if not (0 <= pagina_int < self.num_paginas):
+                raise ValueError(f"Página {pagina_int} inválida (0..{self.num_paginas-1})")
+
+            # validar que la entrada cabe en los bits definidos
+            if entrada_int >= (1 << self.ENTRADA_BITS):
+                raise ValueError(f"Entrada empaquetada {entrada_int} para página {pagina_int} excede los {self.ENTRADA_BITS} bits definidos.")
+
+            # si entrada != 0, extraer marco y validar rango
+            if entrada_int != 0:
+                numero_marco = (entrada_int & self.MASK_MARCO) ################
+
+            self.tabla_de_paginas[pagina_int] = entrada_int
+
+    def desempaquetar_entrada(self, entrada_packed):
+        """
+        Devuelve un dict con campos desempaquetados: {'presente': 0/1, 'marco': int, 'raw': entrada_packed}
+        """
+        presente = (entrada_packed & self.MASK_PRESENTE) >> self.SHIFT_PRESENTE
+        numero_marco = entrada_packed & self.MASK_MARCO
+        return {"presente": int(presente), "marco": int(numero_marco), "raw": int(entrada_packed)}
+
+    def imprimir_tabla_paginas_empaquetada(self):
+        """Imprime la tabla de páginas con la entrada empaquetada y el valor desempaquetado."""
         print("📘 Tabla de Páginas:")
-        print("--------------------------------------------------")
-        print(f"{'Página':<10}{'Marco':<10}{'Presente':<10}")
-        print("--------------------------------------------------")
-        for pagina, datos in self.tabla_de_paginas.items():
-            presente = "1" if datos['presente'] == 1 else "0"
-            print(f"{pagina:<10}{datos['marco']:<10}{presente:<10}")
-        print("--------------------------------------------------")
+        print("-------------------------------------------------------------------------------")
+        print(f"{'Página':<8}{'Entrada (Dec)':<15}{'Entrada (Bin)':<20}{'Marco':<10}{'P/A':<5}")
+        print("-------------------------------------------------------------------------------")
+        for pagina, entrada_packed in self.tabla_de_paginas.items():
+            entrada_bin = imprimir_binario(entrada_packed, self.ENTRADA_BITS).replace(" ", "")
+            desem = self.desempaquetar_entrada(entrada_packed)
+            marco = desem['marco'] if entrada_packed != 0 else 'n/a'
+            presente = desem['presente'] if entrada_packed != 0 else 0
+            print(f"{pagina:<8}{entrada_packed:<15}{entrada_bin:<20}{marco:<10}{presente:<5}")
+        print("-------------------------------------------------------------------------------")
 
     def traducir(self, direccion_virtual):
-
         """
-        Realiza la traducción de una dirección virtual (DV) a una dirección física (DF)
-        utilizando la tabla de páginas.
-
-        :param direccion_virtual: La dirección virtual a traducir (entero).
+        Realiza la traducción de una dirección virtual (DV) a una dirección física (DF).
+        Devuelve la dirección física (int) o None si hay fallo de página / error.
         """
+        max_bits_dv = self.bits_pagina_virtual + self.bits_desplazamiento #Bits para representar la DV
+        print(f"\n--- Traduciendo Dirección Virtual: {direccion_virtual} (0x{direccion_virtual:X}) ---")
+        print(f"DV en binario ({max_bits_dv} bits): {imprimir_binario(direccion_virtual, max_bits_dv)}")
 
-        print(f"\n--- Traduciendo Dirección Virtual: 0x{direccion_virtual:X} ---")
-        print(f"DV en binario ({self.bits_pagina_virtual + self.bits_desplazamiento} bits): {imprimir_binario(direccion_virtual, self.bits_pagina_virtual + self.bits_desplazamiento)}")
-        
-        # El número de página virtual (VP) se obtiene desplazando la DV a la derecha
-        # la cantidad de bits del desplazamiento (bits_desplazamiento).
-        numero_pagina = direccion_virtual >> self.bits_desplazamiento
-
-        # El desplazamiento (offset) se obtiene aplicando la máscara AND al final de la DV.
-        # Esto aísla los bits menos significativos (el campo de desplazamiento).    
+        # 1. Extracción de Número de Página y Desplazamiento
+        numero_pagina = direccion_virtual >> self.bits_desplazamiento #Bits mas altos de la DV
         desplazamiento = direccion_virtual & self.mascara_desplazamiento
 
         print("\n1. Extracción de Componentes:")
-        print(f"   Número de Página = {direccion_virtual} >> {self.bits_desplazamiento}  = {numero_pagina}") #
-        print(f"   Desplazamiento   = {direccion_virtual} & {self.mascara_desplazamiento} = {desplazamiento} "
-              f"(bin: {imprimir_binario(desplazamiento, self.bits_desplazamiento)}, hex: 0x{desplazamiento:X})")
-        
-        print("\n2. Consulta a la Tabla de Páginas:")
+        print(f"   Número de Página = {numero_pagina} (bin: {imprimir_binario(numero_pagina, self.bits_pagina_virtual)})")
+        print(f"   Desplazamiento   = {desplazamiento} (bin: {imprimir_binario(desplazamiento, self.bits_desplazamiento)})")
+
+        print("\n2. Consulta y Desempaquetado de la Entrada de Páginas:")
         if numero_pagina not in self.tabla_de_paginas:
             print(f"   ❌ Error: La página {numero_pagina} es inválida para este espacio de direcciones.")
-            return
+            return None
 
-        entrada_tabla = self.tabla_de_paginas[numero_pagina]
-        print(f"   -> Entrada para página {numero_pagina}: {entrada_tabla}")
+        entrada_packed = self.tabla_de_paginas[numero_pagina]
+        entrada_bin_full = imprimir_binario(entrada_packed, self.ENTRADA_BITS).replace(" ", "")
+        print(f"   Entrada Empaquetada (Dec): {entrada_packed}")
+        print(f"   Entrada Empaquetada (Bin): {entrada_bin_full}")
 
-        if entrada_tabla["presente"] == 0:
+        desem = self.desempaquetar_entrada(entrada_packed)
+        presente = desem['presente']
+        numero_marco = desem['marco']
+
+        print(f"   ➡️ Bit P/A (Presente) = {presente}")
+        print(f"   ➡️ Número de Marco   = {numero_marco}")
+
+        if presente == 0:
             print(f"   ❌ FALLO DE PÁGINA: La página {numero_pagina} no está cargada en memoria.")
-            return
+            return None
 
-        print(f"   -> ✅ La página está presente en memoria.")
-        numero_marco = entrada_tabla["marco"]
+        print(f"   ✅ La página está presente en el Marco {numero_marco}.")
 
-        # La DF se calcula reemplazando el Número de Página Virtual por el Número de Marco Físico
-        # y concatenando el Desplazamiento.
-        # Marco_Físico << bits_desplazamiento: Coloca el número de marco en los bits altos.
-        # | desplazamiento: Añade el desplazamiento original en los bits bajos.
+        # 3. Cálculo de la Dirección Física (Concatenación)
         direccion_fisica = (numero_marco << self.bits_desplazamiento) | desplazamiento
 
         print("\n3. Cálculo de la Dirección Física:")
-        print(f"   Fórmula: (marco << bits_desplazamiento) | desplazamiento")
-        print(f"   Cálculo: ({numero_marco} << {self.bits_desplazamiento}) | {desplazamiento} = {direccion_fisica}")
-        print(f"   Bits del marco: {self.bits_marco}, Bits de dirección física: {self.bits_direccion_fisica}")
+        if self.bits_marco > 0:
+            print(f"   Marco binario: {imprimir_binario(numero_marco, self.bits_marco)}")
+        print(f"   Desplazamiento binario: {imprimir_binario(desplazamiento, self.bits_desplazamiento)}")
 
-        print("\n--- Resultado ---")
-        print(f"Dirección Física: binario = {imprimir_binario(direccion_fisica, self.bits_direccion_fisica)}")
-        print(f"                   hexadecimal = 0x{direccion_fisica:X}")
-        print("-----------------")
+        print("\n--- Resultado de la Traducción ---")
+        print(f"Dirección Física: Decimal = {direccion_fisica}")
+        print(f"                   Hexadecimal = 0x{direccion_fisica:X}")
+        print(f"                   Binario ({self.bits_direccion_fisica} bits) = {imprimir_binario(direccion_fisica, self.bits_direccion_fisica)}")
+        print("----------------------------------")
+        return direccion_fisica
