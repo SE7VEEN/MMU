@@ -204,8 +204,10 @@ class TraductorDeDirecciones:
         # resetear contador de uso de la reemplazada (opcional)
         self.frecuencias_uso[pagina_LFU] = 0
 
-        # asignar el marco al nuevo: construimos la entrada empaquetada con marco y bit presente.
-        nueva_entrada = (marco_liberado & self.MASK_MARCO) | self.MASK_PRESENTE
+        # asignar el marco al nuevo: construir la entrada preservando los bits de control previos
+        entrada_old = self.tabla_de_paginas.get(pagina_faltante, 0)
+        control_prev = entrada_old & self.MASK_CONTROL  # CORRECCIÓN: conservar otros bits de control
+        nueva_entrada = control_prev | (marco_liberado & self.MASK_MARCO) | self.MASK_PRESENTE  # CORRECCIÓN
         self.tabla_de_paginas[pagina_faltante] = nueva_entrada
         # marcar uso inicial
         self.frecuencias_uso[pagina_faltante] = 1
@@ -244,8 +246,8 @@ class TraductorDeDirecciones:
         try:
             direccion_virtual = int(str(direccion_virtual_hex_str), 16)
         except ValueError:
-            print(f"\n   ❌ Error: Dirección virtual '{direccion_virtual_hex_str}' no es un formato hexadecimal válido.")
-            
+            print(f"\n   ❌ Error: Dirección virtual '{direccion_virtual_hex_str}' no es un formato hexadecimal válido.")
+            return None
             
         max_bits_dv = self.bits_pagina_virtual + self.bits_desplazamiento  # Bits para representar la DV
         print(f"\n--- Traduciendo Dirección Virtual: {direccion_virtual_hex_str} (0x{direccion_virtual:X}) ---")
@@ -286,7 +288,9 @@ class TraductorDeDirecciones:
             # Buscar marco libre
             marco_libre = self._encontrar_marco_libre()
             if marco_libre is not None:
-                nueva_entrada = (marco_libre & self.MASK_MARCO) | self.MASK_PRESENTE
+                # CORRECCIÓN: preservar bits de control previos y sólo forzar el bit PRESENTE
+                control_prev = entrada_packed & self.MASK_CONTROL  # conserva los otros bits de control (por ejemplo 11000 << bits_marco)
+                nueva_entrada = control_prev | (marco_libre & self.MASK_MARCO) | self.MASK_PRESENTE  # preservar + marco + presente
                 self.tabla_de_paginas[numero_pagina] = nueva_entrada
                 self.marcos_ocupados.add(marco_libre)
                 self.frecuencias_uso[numero_pagina] = 1
