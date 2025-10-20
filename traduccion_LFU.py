@@ -219,7 +219,8 @@ class TraductorDeDirecciones:
               f"→ será reemplazada por Página {pagina_faltante} usando Marco {marco_liberado}.\n")
 
         # marcar la reemplazada como no presente (ponemos 0, como en tu versión original)
-        self.tabla_de_paginas[pagina_LFU] = 0
+        entrada_sin_presente = entrada_LFU & (~self.MASK_PRESENTE)
+        self.tabla_de_paginas[pagina_LFU] = entrada_sin_presente
         # resetear contador de uso de la reemplazada (opcional)
         self.frecuencias_uso[pagina_LFU] = 0
 
