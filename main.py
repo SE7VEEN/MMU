@@ -15,6 +15,9 @@
 
 from traduccion_LFU import TraductorDeDirecciones
 from cargarDatos import cargar_configuracion_desde_archivo
+from colorama import Fore, Style, init
+
+init(autoreset=True)  # Para que los colores se reinicien automáticamente
 
 if __name__ == "__main__":
     try:
@@ -27,19 +30,22 @@ if __name__ == "__main__":
             mapas
         )
         
-        print("\n--- Listo para traducir ---")
-        # 4. NUEVO BUCLE: Iterar sobre las direcciones cargadas.
+        print(f"\n{Fore.CYAN + Style.BRIGHT}--- Listo para traducir ---{Style.RESET_ALL}")
+        
+        # Iterar sobre las direcciones cargadas
         for i, dv_str in enumerate(direcciones_vi_hex):
-            print(f"\n==============================================")
-            # Asegúrate de que tu método traducir() acepta la string hexadecimal (dv_str)
-            print(f" ACCESO {i+1} de {len(direcciones_vi_hex)}: Procesando DV: {dv_str}")
-            print(f"==============================================")
+            print(Fore.LIGHTBLUE_EX  + "\n==============================================")
+            print(
+                f"{Fore.GREEN + Style.BRIGHT}ACCESO {i+1}{Style.RESET_ALL} "
+                f"{Fore.CYAN}de{Style.RESET_ALL} "
+                f"{Fore.MAGENTA + Style.BRIGHT}{len(direcciones_vi_hex)}{Style.RESET_ALL}: "
+                f"{Fore.WHITE}Procesando DV: {Fore.LIGHTBLUE_EX}{dv_str}{Style.RESET_ALL}"
+            )
+            print(Fore.LIGHTBLUE_EX  + "==============================================")
             
-            # 5. Llamar a traducir. El método traducir() debe hacer la conversión int(dv_str, 16).
             traductor.traducir(dv_str)
 
-
     except (ValueError, KeyError) as e:
-        print(f"\nError durante la ejecución: {e}")
+        print(f"\n{Fore.RED}Error durante la ejecución:{Style.RESET_ALL} {e}")
     except KeyboardInterrupt:
-        print("\n\nSimulación interrumpida.")
+        print(f"\n\n{Fore.RED}Simulación interrumpida.{Style.RESET_ALL}")

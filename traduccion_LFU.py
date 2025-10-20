@@ -1,5 +1,6 @@
 import math
-
+from colorama import Fore, Style, init
+init(autoreset=True)
 # Su propósito es asegurar que la representación binaria tenga la longitud de bits correcta.
 def imprimir_binario(n, bits):
     """Imprime un número en formato binario con espacios cada 4 bits, agrupando desde la derecha."""
@@ -154,25 +155,43 @@ class TraductorDeDirecciones:
         return {"presente": int(presente), "marco": int(numero_marco), "raw": int(entrada_packed)}
 
     def imprimir_tabla_paginas_empaquetada(self):
-        """Imprime la tabla de páginas con la entrada empaquetada y el valor desempaquetado."""
-        print("📘 Tabla de Páginas:")
-        print("----------------------------------------------------------------------------------------")
-        # Encabezado modificado para incluir Hex/Dec
-        print(f"{'Página':<8}{'Entrada (Hex/Dec)':<23}{'Entrada (Bin)':<20}{'Marco':<10}{'P/A':<5}")
-        print("----------------------------------------------------------------------------------------")
+        """Imprime la tabla de páginas con la entrada empaquetada y el valor desempaquetado (con colores)."""
+    
+        # Título principal
+        print(f"\n{Fore.CYAN + Style.BRIGHT}📘 Tabla de Páginas:{Style.RESET_ALL}")
+        print(Fore.LIGHTYELLOW_EX + "-" * 88)
 
-        for pagina, entrada_packed in self.tabla_de_paginas.items():
+    # Encabezado
+        encabezado = f"{'Página':<8}{'Entrada (Hex/Dec)':<23}{'Entrada (Bin)':<20}{'Marco':<10}{'P/A':<5}"
+        print(Fore.CYAN + Style.BRIGHT + encabezado)
+        print(Fore.LIGHTYELLOW_EX  + "-" * 88)
+
+    # Filas de la tabla
+        for i, (pagina, entrada_packed) in enumerate(self.tabla_de_paginas.items()):
             entrada_bin = imprimir_binario(entrada_packed, self.ENTRADA_BITS).replace(" ", "")
             desem = self.desempaquetar_entrada(entrada_packed)
             marco = desem['marco'] if entrada_packed != 0 else 'n/a'
             presente = desem['presente'] if entrada_packed != 0 else 0
             entrada_display = f"0x{entrada_packed:X} / {entrada_packed}" 
-            print(f"{pagina:<8}{entrada_display:<23}{entrada_bin:<20}{marco:<10}{presente:<5}")
 
-        print("-------------------------------------------------------------------------------")
-        print(f"Marcos ocupados: {sorted(list(self.marcos_ocupados))}")
-        print(f"Fallos de página (acumulados): {self.fallos_pagina}")
-        print("-------------------------------------------------------------------------------")    
+            # Color según si la página está presente
+            color_presente = Fore.GREEN if presente == 1 else Fore.RED
+            color_fila = Fore.WHITE if i % 2 == 0 else Fore.LIGHTBLACK_EX  # alternar color filas
+
+            print(
+                color_fila +
+                f"{pagina:<8}"
+                f"{entrada_display:<23}"
+                f"{entrada_bin:<20}"
+                f"{str(marco):<10}"
+                f"{color_presente}{presente:<5}{Style.RESET_ALL}"
+        )
+
+        print(Fore.LIGHTYELLOW_EX  + "-" * 79)
+        print(f"{Fore.MAGENTA}Marcos ocupados: {Fore.WHITE}{sorted(list(self.marcos_ocupados))}")
+        print(f"{Fore.MAGENTA}Fallos de página (acumulados): {Fore.WHITE}{self.fallos_pagina}")
+        print(Fore.LIGHTYELLOW_EX  + "-" * 79)
+
         self.imprimir_tabla_memoria_fisica()
 
 
@@ -217,24 +236,45 @@ class TraductorDeDirecciones:
         return marco_liberado
     
     def imprimir_tabla_memoria_fisica(self):
-        """Muestra la tabla de memoria física: Marco, Página cargada, y frecuencia de uso."""
-        print("\n>>  Tabla de Memoria Física:  <<")
-        print("--------------------------------------------")
-        print(f"{'Marco':<10}{'Página':<10}{'Frecuencia de uso':<10}")
-        print("--------------------------------------------")
-        for marco in range(self.num_marcos):
+        """Muestra la tabla de memoria física: Marco, Página cargada, y frecuencia de uso (con colores)."""
+        ancho = 44
+        print(f"\n{Fore.CYAN + Style.BRIGHT}>>  Tabla de Memoria Física:  <<{Style.RESET_ALL}")
+        print(Fore.LIGHTYELLOW_EX + "-" * ancho)
+        encabezado = f"{'Marco':<10}{'Página':<10}{'Frecuencia de uso':<14}"
+        print(Fore.CYAN + Style.BRIGHT + encabezado)
+        print(Fore.LIGHTYELLOW_EX+ "-" * ancho)
+
+        for m in range(self.num_marcos):
             pagina_actual = None
             for pagina, entrada in self.tabla_de_paginas.items():
                 desem = self.desempaquetar_entrada(entrada)
-                if desem["presente"] == 1 and desem["marco"] == marco:
+                if desem["presente"] == 1 and desem["marco"] == m:
                     pagina_actual = pagina
                     break
+
             if pagina_actual is not None:
                 frecuencia = self.frecuencias_uso.get(pagina_actual, 0)
-                print(f"{marco:<10}{pagina_actual:<10}{frecuencia:<10}")
+                # color para marcos ocupados
+                color_marco = Fore.GREEN + Style.BRIGHT
+                color_pagina = Fore.WHITE if (pagina_actual % 2 == 0) else Fore.LIGHTBLACK_EX
+                color_freq = Fore.MAGENTA
+                print(
+                    f"{color_marco}{m:<10}"
+                    f"{color_pagina}{pagina_actual:<10}"
+                    f"{color_freq}{frecuencia:<14}"
+                    + Style.RESET_ALL
+                )
             else:
-                print(f"{marco:<10}{'---':<10}{'---':<10}")
-        print("--------------------------------------------")
+                # marcos libres en rojo tenue
+                print(
+                    f"{Fore.RED + Style.BRIGHT}{m:<10}"
+                    f"{Fore.WHITE}{'---':<10}"
+                    f"{Fore.WHITE}{'---':<14}"
+                    + Style.RESET_ALL
+                )
+
+        print(Fore.LIGHTYELLOW_EX  + "-" * ancho)
+
 
     
     def traducir(self, direccion_virtual_hex_str):
